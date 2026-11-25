@@ -1,1 +1,101 @@
 
+import os
+import discord
+from discord import app_commands
+
+TOKEN = os.getenv("DISCORD_TOKEN")
+
+intents = discord.Intents.default()
+intents.members = True
+
+class DawgBot(discord.Client):
+    def __init__(self):
+        super().__init__(intents=intents)
+        self.tree = app_commands.CommandTree(self)
+
+    async def setup_hook(self):
+        await self.tree.sync()
+
+bot = DawgBot()
+
+@bot.event
+async def on_ready():
+    print(f"DAWG Bot online: {bot.user}")
+
+@bot.event
+async def on_member_join(member):
+    channel = discord.utils.get(
+        member.guild.text_channels, name="welcome"
+    )
+    if channel:
+        await channel.send(
+            f"Welcome {member.mention} to **DAWG Clan!** 🐺"
+        )
+
+@bot.tree.command(name="setup", description="Create DAWG server channels and roles")
+@app_commands.checks.has_permissions(manage_guild=True)
+async def setup(interaction: discord.Interaction):
+    guild = interaction.guild
+    await interaction.response.defer(ephemeral=True)
+
+    roles = [
+        "Owner", "Co-Owner", "Admin",
+        "Moderator", "Member", "Trial Member"
+    ]
+
+    for name in roles:
+        if not discord.utils.get(guild.roles, name=name):
+            await guild.create_role(name=name)
+
+    categories = {
+        "INFORMATION": ["announcements", "rules", "welcome"],
+        "COMMUNITY": ["general-chat", "game-chat", "clips-and-screenshots"],
+        "CLAN": ["recruitment", "clan-chat"],
+        "VOICE": ["General VC", "Squad VC"],
+        "STAFF": ["staff-room"]
+    }
+
+    for category_name, channels in categories.items():
+        category = discord.utils.get(
+            guild.categories, name=category_name
+        )
+        if category is None:
+            category = await guild.create_category(category_name)
+
+        for channel_name in channels:
+            if channel_name not in [c.name for c in category.channels]:
+                if "VC" in channel_name:
+                    await guild.create_voice_channel(
+                        channel_name, category=category
+                    )
+                else:
+                    await guild.create_text_channel(
+                        channel_name, category=category
+                    )
+
+    await interaction.followup.send(
+        "🐺 DAWG server setup completed!"
+    )
+
+@bot.tree.command(name="recruit", description="Post a clan recruitment message")
+async def recruit(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="🐺 DAWG CLAN RECRUITMENT",
+        description=(
+            "We are recruiting active Indian players!\n\n"
+            "Requirements:\n"
+            "• Indian players who understand Hindi\n"
+            "• Minimum ID level 12+\n"
+            "• Basic game experience\n"
+            "• Active and respectful members\n\n"
+            "Interested? Contact the clan staff!"
+        ),
+        color=discord.Color.dark_red()
+    )
+    await interaction.response.send_message(embed=embed)
+
+if not TOKEN:
+    raise RuntimeError("DISCORD_TOKEN is not configured")
+
+bot.run(TOKEN)
+
